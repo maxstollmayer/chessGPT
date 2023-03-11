@@ -1,6 +1,6 @@
 # chessGPT
 
-Play chess with GPT in your terminal.
+Play chess with chatGPT in your terminal.
 
 ## Quick Start
 
