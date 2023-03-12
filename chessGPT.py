@@ -1,41 +1,30 @@
 import argparse
 from random import choice
-import re
 import sys
 
 import chess
 import openai
 
-MODEL = "gpt-3.5-turbo"
-SAN_PATTERN = r"([Oo0](-[Oo0]){1,2}|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](\=[QRBN])?[+#]?(\s(1-0|0-1|1\/2-1\/2))?)"
-SYMBOLS = {
-    "K": "♔",
-    "Q": "♕",
-    "R": "♖",
-    "B": "♗",
-    "N": "♘",
-    "P": "♙",
-    "k": "♚",
-    "q": "♛",
-    "r": "♜",
-    "b": "♝",
-    "n": "♞",
-    "p": "♟",
-    ".": " ",
-}
+N_RANKS = 8
+N_FILES = 8
+MODEL = "gpt-3.5-turbo-0301"
 
 
 def render(board: chess.Board) -> str:
-    board_lines = str(board).split("\n")
-    n_lines = len(board_lines)
-    board_chars = [list(line.replace(" ", "")) for line in board_lines]
     lines: list[str] = []
-    for i, row in enumerate(board_chars):
-        line = f"{n_lines - i}│ "
-        line += " │ ".join([SYMBOLS.get(char, char) for char in row])
+    for i in range(N_RANKS):
+        pieces = [
+            board.piece_at(chess.square(j, N_RANKS - i - 1)) for j in range(N_FILES)
+        ]
+        chars = map(
+            lambda piece: piece.unicode_symbol() if piece is not None else " ",
+            pieces,
+        )
+        line = f"{N_RANKS - i}│ "
+        line += " │ ".join(chars)
         line += " │"
         lines.append(line)
-        if i < n_lines - 1:
+        if i < N_RANKS - 1:
             lines.append(" ├───┼───┼───┼───┼───┼───┼───┼───┤")
     if board.turn == chess.BLACK:
         lines.reverse()
@@ -75,30 +64,31 @@ def get_ai_prompt(color: str, board_str: str) -> list[dict[str, str]]:
     ]
 
 
-def send_ai_prompt(prompt: list[dict[str, str]]) -> str:
-    response = openai.ChatCompletion.create(
+def send_ai_prompt(prompt: list[dict[str, str]]) -> tuple[str, str]:
+    response = openai.ChatCompletion.create(  # type: ignore
         model=MODEL,
         messages=prompt,
     )
-    return response["choices"][0]["message"]["content"]
+    reply: str = response["choices"][0]["message"]["content"]  # type: ignore
+    lines = reply.splitlines()
+    san = lines[0]
+    explanation = "\n".join([line for line in lines[1:] if line != ""])
+    return san, explanation
 
 
-def get_ai_move(board: chess.Board, max_tries: int) -> chess.Move:
+def get_ai_move(board: chess.Board, max_tries: int) -> tuple[chess.Move, str]:
     color = "white" if board.turn == chess.WHITE else "black"
     prompt = get_ai_prompt(color, str(board))
     for _ in range(max_tries):
-        reply = send_ai_prompt(prompt)
+        san, explanation = send_ai_prompt(prompt)
         try:
-            san = next(re.finditer(SAN_PATTERN, reply)).group()
             move = board.parse_san(san)
-            print("\n".join([line for line in reply.splitlines()[1:] if line != ""]))
-            return move
+            return move, explanation
         except StopIteration:
             continue
         except ValueError:
             continue
-    print("AI did not make a valid move.")
-    return chess.Move.null()
+    return chess.Move.null(), "AI did not make a valid move."
 
 
 def authenticate() -> None:
@@ -106,9 +96,9 @@ def authenticate() -> None:
         print("OpenAI API key not found in environment variable 'OPENAI_API_KEY'.")
         openai.api_key = input("Enter your OpenAI key manually: ")
     try:
-        openai.Model.retrieve(MODEL)
-    except openai.error.AuthenticationError as err:
-        print(err)
+        openai.Model.retrieve(MODEL)  # type: ignore
+    except openai.error.AuthenticationError as err:  # type: ignore
+        print(err)  # type: ignore
         sys.exit()
 
 
@@ -116,7 +106,6 @@ def main() -> None:
     # read api key
     authenticate()
 
-    print("\n")
     # argument parsing
     parser = argparse.ArgumentParser(
         prog="chessGPT", description="Play chess against GPT in the terminal."
@@ -146,12 +135,15 @@ def main() -> None:
 
     # game loop
     while not board.is_game_over():
-        board.push(get_ai_move(board, args.tries))
+        move, explanation = get_ai_move(board, args.tries)
+        board.push(move)
         print(render(board))
+        print("\n")
+        print(explanation)
         board.push(get_user_move(board))
 
     # print outcome
-    winner = board.outcome().winner
+    winner = board.outcome().winner  # type: ignore
     if winner is None:
         print("It's a draw.")
     elif winner == user_side:
