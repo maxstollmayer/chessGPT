@@ -1,0 +1,27 @@
+Container {
+    layout: horizontal;
+    padding: 0;
+    margin: 0;
+}
+
+DataTable {
+    width: 50%;
+    height: 10;
+    padding: 0;
+    margin: 0;
+    content-align-horizontal: center;
+    content-align-vertical: middle;
+}
+
+Explanation {
+    width: 50%;
+    height: 10;
+    padding: 0;
+    margin: 0;
+}
+
+#prompt {
+    dock: bottom;
+    padding: 0;
+    margin: 2 0;
+}

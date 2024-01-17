@@ -3,14 +3,16 @@ from random import choice
 import sys
 
 import chess
+from chess import Board, Move
 import openai
+
 
 N_RANKS = 8
 N_FILES = 8
 MODEL = "gpt-3.5-turbo-0301"
 
 
-def render(board: chess.Board) -> str:
+def render(board: Board) -> str:
     lines: list[str] = []
     for i in range(N_RANKS):
         pieces = [
@@ -34,7 +36,7 @@ def render(board: chess.Board) -> str:
     return "\n".join(lines)
 
 
-def get_user_move(board: chess.Board) -> chess.Move:
+def get_user_move(board: Board) -> Move:
     san = input("\nYour next move: ")
     while True:
         if san == "quit":
@@ -65,18 +67,18 @@ def get_ai_prompt(color: str, board_str: str) -> list[dict[str, str]]:
 
 
 def send_ai_prompt(prompt: list[dict[str, str]]) -> tuple[str, str]:
-    response = openai.ChatCompletion.create(
+    response = openai.ChatCompletion.create(  # type: ignore
         model=MODEL,
         messages=prompt,
     )
-    reply: str = response["choices"][0]["message"]["content"]
+    reply: str = response["choices"][0]["message"]["content"]  # type: ignore
     lines = reply.splitlines()
     san = lines[0]
     explanation = "\n".join([line for line in lines[1:] if line != ""])
     return san, explanation
 
 
-def get_ai_move(board: chess.Board, max_tries: int) -> tuple[chess.Move, str]:
+def get_ai_move(board: Board, max_tries: int) -> tuple[Move, str]:
     color = "white" if board.turn == chess.WHITE else "black"
     prompt = get_ai_prompt(color, str(board))
     for _ in range(max_tries):
@@ -88,7 +90,7 @@ def get_ai_move(board: chess.Board, max_tries: int) -> tuple[chess.Move, str]:
             continue
         except ValueError:
             continue
-    return chess.Move.null(), "AI did not make a valid move."
+    return Move.null(), "AI did not make a valid move."
 
 
 def authenticate() -> None:
@@ -96,9 +98,9 @@ def authenticate() -> None:
         print("OpenAI API key not found in environment variable 'OPENAI_API_KEY'.")
         openai.api_key = input("Enter your OpenAI key manually: ")
     try:
-        openai.Model.retrieve(MODEL)
-    except openai.error.AuthenticationError as err:
-        print(err)
+        openai.Model.retrieve(MODEL)  # type: ignore
+    except openai.error.AuthenticationError as err:  # type: ignore
+        print(err)  # type: ignore
         sys.exit()
 
 
@@ -125,7 +127,8 @@ def main() -> None:
     args = parser.parse_args()
 
     # setup board
-    board = chess.Board()
+    board = Board()
+
     user_side = chess.WHITE if args.white else choice((chess.WHITE, chess.BLACK))
 
     # starting user move
@@ -143,7 +146,7 @@ def main() -> None:
         board.push(get_user_move(board))
 
     # print outcome
-    winner = board.outcome().winner
+    winner = board.outcome().winner  # type: ignore
     if winner is None:
         print("It's a draw.")
     elif winner == user_side:
@@ -152,5 +155,85 @@ def main() -> None:
         print("You lost.")
 
 
+from textual.app import App, ComposeResult
+from textual.containers import Container
+from textual.reactive import reactive
+from textual.widget import Widget
+from textual.widgets import Header, Footer, Input, DataTable, Markdown, Static
+
+
+ROWS = [
+    ("",) * 9,
+    (8, "r", "n", "b", "q", "k", "b", "n", "r"),
+    (7, "p", "p", "p", "p", "p", "p", "p", "p"),
+    (6, ".", ".", ".", ".", ".", ".", ".", "."),
+    (5, ".", ".", ".", ".", ".", ".", ".", "."),
+    (4, ".", ".", ".", ".", ".", ".", ".", "."),
+    (3, ".", ".", ".", ".", ".", ".", ".", "."),
+    (2, "P", "P", "P", "P", "P", "P", "P", "P"),
+    (1, "R", "N", "B", "Q", "K", "B", "N", "R"),
+    ("", "a", "b", "c", "d", "e", "f", "g", "h"),
+]
+
+EXAMPLE_MARKDOWN = """\
+This is an example of Textual's `Markdown` widget.
+
+Markdown syntax and extensions are supported.
+
+- Typography *emphasis*, **strong**, `inline code` etc.
+- Headers
+- Lists (bullet and ordered)
+- Syntax highlighted code blocks
+- Tables!
+"""
+
+
+class ChessBoard(Widget):
+    board = reactive(Board)
+
+    def render(self) -> str:
+        return str(self.board)
+
+
+class Explanation(Static):
+    message = reactive("")
+
+    def compose(self) -> ComposeResult:
+        yield Markdown(EXAMPLE_MARKDOWN)
+
+
+class Prompt(Static):
+    def compose(self) -> ComposeResult:
+        yield Input(placeholder="Enter move:")
+
+
+class chessGPT(App):
+    """A Textual app to play chess in the terminal."""
+
+    CSS_PATH = "styles.css"
+    BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
+
+    def compose(self) -> ComposeResult:
+        """Create child widgets for the app."""
+        yield Header()
+        yield Container(DataTable(show_header=False), Explanation())
+        yield Input(id="prompt", placeholder="Enter move")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        rows = iter(ROWS)
+        table.add_columns(*next(rows))
+        table.add_rows(rows)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        ...
+
+    def action_toggle_dark(self) -> None:
+        """An action to toggle dark mode."""
+        self.dark = not self.dark
+
+
 if __name__ == "__main__":
-    main()
+    app = chessGPT()
+    app.run()
