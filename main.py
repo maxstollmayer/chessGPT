@@ -65,11 +65,11 @@ def get_ai_prompt(color: str, board_str: str) -> list[dict[str, str]]:
 
 
 def send_ai_prompt(prompt: list[dict[str, str]]) -> tuple[str, str]:
-    response = openai.ChatCompletion.create(  # type: ignore
+    response = openai.ChatCompletion.create(
         model=MODEL,
         messages=prompt,
     )
-    reply: str = response["choices"][0]["message"]["content"]  # type: ignore
+    reply: str = response["choices"][0]["message"]["content"]
     lines = reply.splitlines()
     san = lines[0]
     explanation = "\n".join([line for line in lines[1:] if line != ""])
@@ -96,9 +96,9 @@ def authenticate() -> None:
         print("OpenAI API key not found in environment variable 'OPENAI_API_KEY'.")
         openai.api_key = input("Enter your OpenAI key manually: ")
     try:
-        openai.Model.retrieve(MODEL)  # type: ignore
-    except openai.error.AuthenticationError as err:  # type: ignore
-        print(err)  # type: ignore
+        openai.Model.retrieve(MODEL)
+    except openai.error.AuthenticationError as err:
+        print(err)
         sys.exit()
 
 
@@ -143,7 +143,7 @@ def main() -> None:
         board.push(get_user_move(board))
 
     # print outcome
-    winner = board.outcome().winner  # type: ignore
+    winner = board.outcome().winner
     if winner is None:
         print("It's a draw.")
     elif winner == user_side:

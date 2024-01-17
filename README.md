@@ -4,4 +4,4 @@ Play chess with chatGPT in your terminal.
 
 ## Quick Start
 
-Install requirements with `pip install -r reqirements.txt` and run `python chessGPT.py`.
+Clone the repo and install with `pip install .`. Now you can run `chess` in your terminal to play against chatGPT.
